@@ -1,108 +1,151 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:io';
-import 'dart:convert';
-import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart';
 
-void main() => runApp(MyApp());
+import 'package:camera/camera.dart';
+import 'package:flutter/material.dart';
+import 'package:path/path.dart' show join;
+import 'package:path_provider/path_provider.dart';
 
-class MyApp extends StatefulWidget {
-  @override
-  State<StatefulWidget> createState() {
-    return MyAppState();
-  }
+Future<void> main() async {
+  // Obtain a list of the available cameras on the device.
+  final cameras = await availableCameras();
+  // Get a specific camera from the list of available cameras.
+  // final firstCamera = cameras.first;
+  // print(firstCamera);
+
+  runApp(
+    MaterialApp(
+      theme: ThemeData.dark(),
+      home: TakePictureScreen(
+        // Pass the appropriate camera to the TakePictureScreen widget.
+        camera: cameras[1],
+      ),
+    ),
+  );
 }
 
-class MyAppState extends State<MyApp> {
-  File _image;
-  var toggle = false;
+// A screen that allows users to take a picture using a given camera.
+class TakePictureScreen extends StatefulWidget {
+  final CameraDescription camera;
 
-  Future getImage(bool isCamera) async {
-    File image;
-    if (isCamera) {
-      image = await ImagePicker.pickImage(source: ImageSource.camera);
-    } else {
-      image = await ImagePicker.pickImage(source: ImageSource.gallery);
-    }
+  const TakePictureScreen({
+    Key key,
+    @required this.camera,
+  }) : super(key: key);
 
-    setState(() {
-      _image = image;
-    });
+  @override
+  TakePictureScreenState createState() => TakePictureScreenState();
+}
+
+class TakePictureScreenState extends State<TakePictureScreen> {
+  CameraController _controller;
+  Future<void> _initializeControllerFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // To display the current output from the Camera,
+    // create a CameraController.
+    _controller = CameraController(
+      // Get a specific camera from the list of available cameras.
+      widget.camera,
+      // Define the resolution to use.
+      ResolutionPreset.medium,
+    );
+
+    // Next, initialize the controller. This returns a Future.
+    _initializeControllerFuture = _controller.initialize();
   }
 
-  toggleIcons() {
-    setState(() {
-      toggle = !toggle;
-    });
+  @override
+  void dispose() {
+    // Dispose of the controller when the widget is disposed.
+    _controller.dispose();
+    super.dispose();
+  }
+
+  BoxDecoration myBoxDecoration() {
+    return BoxDecoration(
+      border: Border.all(width: 3.0, color: Colors.red,),
+      borderRadius: BorderRadius.all(
+          Radius.circular(50.0) //         <--- border radius here
+          ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-        home: Scaffold(
-            appBar: AppBar(title: Text('Image Picker')),
-            floatingActionButton: Stack(
-              children: <Widget>[
-                Padding(
-                  padding: EdgeInsets.only(left: 31),
-                  child: Align(
-                    alignment: Alignment.bottomLeft,
-                    child: FloatingActionButton(
-                      onPressed: () {
-                        getImage(false);
-                      },
-                      child: Icon(Icons.add_photo_alternate),
-                    ),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: FloatingActionButton(
-                    onPressed: () {
-                      getImage(true);
-                    },
-                    child: Icon(Icons.camera_alt),
-                  ),
-                ),
-              ],
-            ),
-            body: Container(
-              child: Column(children: <Widget>[
-                toggle
-                    ? IconButton(
-                        icon: Icon(Icons.insert_drive_file),
-                        onPressed: () {
-                          print('clicked');
-                          getImage(false);
-                        },
-                      )
-                    : Container(),
-                SizedBox(height: 10.0),
-                toggle
-                    ? IconButton(
-                        icon: Icon(Icons.camera_alt),
-                        onPressed: () {
-                          print('clicked');
-                          getImage(true);
-                        },
-                      )
-                    : Container(),
-                _image == null
-                    ? Container(
-                        decoration: BoxDecoration(
-                          image: DecorationImage(
-                            image: AssetImage("assets/face.jpeg"),
-                            colorFilter: new ColorFilter.mode(
-                                Colors.black.withOpacity(0.2),
-                                BlendMode.dstATop),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                        child: new Text('Welcome to Skindex. Take a pic.',
-                            style: Theme.of(context).textTheme.display4),
-                      )
-                    : Image.file(_image, height: 600.0, width: 400.0),
-              ]),
-            )));
+    return Scaffold(
+      appBar: AppBar(title: Text('Take a picture')),
+      // Wait until the controller is initialized before displaying the
+      // camera preview. Use a FutureBuilder to display a loading spinner
+      // until the controller has finished initializing.
+      body: new Container(
+          decoration: myBoxDecoration(),
+          child: FutureBuilder<void>(
+            future: _initializeControllerFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done) {
+                // If the Future is complete, display the preview.
+                return CameraPreview(_controller);
+              } else {
+                // Otherwise, display a loading indicator.
+                return Center(child: CircularProgressIndicator());
+              }
+            },
+          )),
+      floatingActionButton: FloatingActionButton(
+        child: Icon(Icons.camera_front),
+        // Provide an onPressed callback.
+        onPressed: () async {
+          // Take the Picture in a try / catch block. If anything goes wrong,
+          // catch the error.
+          try {
+            // Ensure that the camera is initialized.
+            await _initializeControllerFuture;
+
+            // Construct the path where the image should be saved using the
+            // pattern package.
+            final path = join(
+              // Store the picture in the temp directory.
+              // Find the temp directory using the `path_provider` plugin.
+              (await getTemporaryDirectory()).path,
+              '${DateTime.now()}.png',
+            );
+
+            // Attempt to take a picture and log where it's been saved.
+            await _controller.takePicture(path);
+
+            // If the picture was taken, display it on a new screen.
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DisplayPictureScreen(imagePath: path),
+              ),
+            );
+          } catch (e) {
+            // If an error occurs, log the error to the console.
+            print(e);
+          }
+        },
+      ),
+    );
+  }
+}
+
+// A widget that displays the picture taken by the user.
+class DisplayPictureScreen extends StatelessWidget {
+  final String imagePath;
+
+  const DisplayPictureScreen({Key key, this.imagePath}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Display the Picture')),
+      // The image is stored as a file on the device. Use the `Image.file`
+      // constructor with the given path to display the image.
+      body: Image.file(File(imagePath)),
+    );
   }
 }
