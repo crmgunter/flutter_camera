@@ -28,6 +28,8 @@ dependencies:
   image_picker:
   path_provider:
   path:
+  firebase_ml_vision:
+  cloud_firestore:
 
 dev_dependencies:
   flutter_test:

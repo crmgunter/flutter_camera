@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
+import 'dart:ui';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' show join;
 import 'package:path_provider/path_provider.dart';
+import 'package:firebase_ml_vision/firebase_ml_vision.dart';
 
 Future<void> main() async {
   // Obtain a list of the available cameras on the device.
@@ -66,13 +69,13 @@ class TakePictureScreenState extends State<TakePictureScreen> {
 
   BoxDecoration myBoxDecoration() {
     return BoxDecoration(
-      border: Border.all(
-        width: 3.0,
-        color: Colors.orange,
-      ),
-      borderRadius: BorderRadius.all(
-        Radius.circular(150.0),
-    ));
+        border: Border.all(
+          width: 3.0,
+          color: Colors.orange,
+        ),
+        borderRadius: BorderRadius.all(
+          Radius.circular(150.0),
+        ));
   }
 
   @override
@@ -96,6 +99,9 @@ class TakePictureScreenState extends State<TakePictureScreen> {
               }),
           Center(
             child: Container(
+                child: Image.network(
+                  'https://www.stickpng.com/assets/images/5aafb1cc7603fc558cffc0c6.png',
+                ),
                 height: (500.0),
                 width: (300.0),
                 foregroundDecoration: myBoxDecoration()),
@@ -107,6 +113,7 @@ class TakePictureScreenState extends State<TakePictureScreen> {
           onPressed: () async {
             // Take the Picture in a try / catch block. If anything goes wrong,
             // catch the error.
+
             try {
               // Ensure that the camera is initialized.
               await _initializeControllerFuture;
@@ -116,7 +123,8 @@ class TakePictureScreenState extends State<TakePictureScreen> {
               final path = join(
                 // Store the picture in the temp directory.
                 // Find the temp directory using the `path_provider` plugin.
-                (await getTemporaryDirectory()).path,
+                // (await getTemporaryDirectory()).path,
+                (await getApplicationDocumentsDirectory()).path,
                 '${DateTime.now()}.png',
               );
 
@@ -148,6 +156,16 @@ class DisplayPictureScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    void getImage() async {
+      final File imageFile = File(imagePath);
+      final FirebaseVisionImage visionImage =
+          FirebaseVisionImage.fromFile(imageFile);
+      final FaceDetector faceDetector = FirebaseVision.instance.faceDetector();
+      final List<Face> faces = await faceDetector.processImage(visionImage);
+
+      
+    }
+
     return Scaffold(
       appBar: AppBar(title: Text('Display the Picture')),
       // The image is stored as a file on the device. Use the `Image.file`
