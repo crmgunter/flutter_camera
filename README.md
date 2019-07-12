@@ -1,6 +1,6 @@
 # test_app
 
-A new Flutter project.
+Playing with Flutter camera.
 
 ## Getting Started
 
